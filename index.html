@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" class="light-theme">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -9,7 +9,19 @@
 </head>
 <body>
     <div class="container">
-        <h1>Controle de Gastos</h1>
+        <div class="header-container">
+            <h1>Controle de Gastos</h1>
+            <button id="theme-toggle" class="theme-toggle" aria-label="Alternar tema">
+                <span class="theme-icon">🌙</span>
+            </button>
+        </div>
+        
+        <!-- Alerta de limite -->
+        <div id="limit-alert" class="limit-alert hidden">
+            <span class="alert-icon">⚠️</span>
+            <span id="alert-message">Atenção! Você está próximo do limite do cartão.</span>
+            <button id="close-alert" class="close-alert">×</button>
+        </div>
         
         <div class="card">
             <div class="card-header">

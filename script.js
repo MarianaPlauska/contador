@@ -2,6 +2,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Constants
     const CARD_LIMIT = 500;
     const STORAGE_KEY = 'creditCardExpenses';
+    const THEME_KEY = 'preferredTheme';
+    const LIMIT_WARNING_THRESHOLD = 0.75; // 75% do limite
     
     // DOM Elements
     const expenseForm = document.getElementById('expense-form');
@@ -14,6 +16,11 @@ document.addEventListener('DOMContentLoaded', function() {
     const usedValue = document.getElementById('used-value');
     const availableValue = document.getElementById('available-value');
     const chartTabs = document.querySelectorAll('.chart-tab');
+    const themeToggle = document.getElementById('theme-toggle');
+    const themeIcon = document.querySelector('.theme-icon');
+    const limitAlert = document.getElementById('limit-alert');
+    const alertMessage = document.getElementById('alert-message');
+    const closeAlert = document.getElementById('close-alert');
     
     // Cores para as categorias nos gráficos
     const categoryColors = {
@@ -39,6 +46,9 @@ document.addEventListener('DOMContentLoaded', function() {
     let expensesChart = null;
     let activeChartType = 'daily';
     
+    // Inicializar tema
+    initTheme();
+    
     dateInput.valueAsDate = new Date();
     
     let expenses = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
@@ -46,8 +56,12 @@ document.addEventListener('DOMContentLoaded', function() {
     renderExpenses();
     updateLimitBar();
     renderChart(activeChartType);
+    checkLimitWarning();
     
+    // Event Listeners
     expenseForm.addEventListener('submit', addExpense);
+    themeToggle.addEventListener('click', toggleTheme);
+    closeAlert.addEventListener('click', dismissAlert);
     
     // Event listeners para as abas de gráficos
     chartTabs.forEach(tab => {
@@ -97,6 +111,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderExpenses();
         updateLimitBar();
         renderChart(activeChartType);
+        checkLimitWarning();
         
         expenseForm.reset();
         dateInput.valueAsDate = new Date(); // reseta o dia
@@ -108,6 +123,7 @@ document.addEventListener('DOMContentLoaded', function() {
         renderExpenses();
         updateLimitBar();
         renderChart(activeChartType);
+        checkLimitWarning();
     }
     
     function renderExpenses() {
@@ -126,7 +142,7 @@ document.addEventListener('DOMContentLoaded', function() {
             
             // Adiciona um indicador de categoria com cor
             const categoryDot = expense.category ? 
-                `<span class="category-dot" style="background-color: ${categoryColors[expense.category]}"></span>` : '';
+                `<span class="category-dot" style="background-color: ${categoryColors[expense.category] || '#C9CBCF'}"></span>` : '';
             
             expenseItem.innerHTML = `
                 <span>${formattedDate}</span>
@@ -169,6 +185,18 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function renderChart(chartType) {
+        // Verifica se há dados para exibir
+        if (expenses.length === 0) {
+            const ctx = document.getElementById('expensesChart');
+            ctx.height = 100;
+            const context = ctx.getContext('2d');
+            context.clearRect(0, 0, ctx.width, ctx.height);
+            context.font = '16px Arial';
+            context.textAlign = 'center';
+            context.fillText('Nenhum dado para exibir', ctx.width/2, 50);
+            return;
+        }
+        
         // Destrói o gráfico anterior se existir
         if (expensesChart) {
             expensesChart.destroy();
@@ -176,23 +204,34 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const ctx = document.getElementById('expensesChart').getContext('2d');
         
+        // Configurações de cores baseadas no tema
+        const isDark = document.documentElement.classList.contains('dark-theme');
+        const gridColor = isDark ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.1)';
+        const textColor = isDark ? '#e0e0e0' : '#666';
+        
+        // Configurações globais do Chart.js
+        Chart.defaults.color = textColor;
+        
         if (chartType === 'daily') {
-            renderDailyChart(ctx);
+            renderDailyChart(ctx, gridColor);
         } else if (chartType === 'category') {
             renderCategoryChart(ctx);
         }
     }
     
-    function renderDailyChart(ctx) {
+    function renderDailyChart(ctx, gridColor) {
         // Agrupa gastos por dia
         const dailyData = {};
         
         // Ordena as despesas por data
         const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
         
-        // Pega apenas os últimos 7 dias com gastos
+        // Pega até os últimos 7 dias com gastos
         const uniqueDates = [...new Set(sortedExpenses.map(expense => expense.date))];
         const last7Dates = uniqueDates.slice(-7);
+        
+        // Se não houver datas, não renderize o gráfico
+        if (last7Dates.length === 0) return;
         
         // Inicializa os dados para os últimos 7 dias
         last7Dates.forEach(date => {
@@ -209,6 +248,9 @@ document.addEventListener('DOMContentLoaded', function() {
         // Formata as datas para exibição
         const labels = Object.keys(dailyData).map(date => formatDate(date));
         const data = Object.values(dailyData);
+        
+        // Log para debug
+        console.log("Dados do gráfico diário:", { labels, data });
         
         expensesChart = new Chart(ctx, {
             type: 'bar',
@@ -228,10 +270,18 @@ document.addEventListener('DOMContentLoaded', function() {
                 scales: {
                     y: {
                         beginAtZero: true,
+                        grid: {
+                            color: gridColor
+                        },
                         ticks: {
                             callback: function(value) {
                                 return 'R$' + value;
                             }
+                        }
+                    },
+                    x: {
+                        grid: {
+                            color: gridColor
                         }
                     }
                 }
@@ -273,6 +323,12 @@ document.addEventListener('DOMContentLoaded', function() {
             }
         });
         
+        // Log para debug
+        console.log("Dados do gráfico de categorias:", { categories, values });
+        
+        // Se não houver categorias com valores, não renderize o gráfico
+        if (categories.length === 0) return;
+        
         expensesChart = new Chart(ctx, {
             type: 'doughnut',
             data: {
@@ -313,5 +369,53 @@ document.addEventListener('DOMContentLoaded', function() {
     function formatDate(dateString) {
         const [year, month, day] = dateString.split('-');
         return `${day}/${month}/${year}`;
+    }
+    
+    // Funções para o tema claro/escuro
+    function initTheme() {
+        const savedTheme = localStorage.getItem(THEME_KEY);
+        if (savedTheme === 'dark') {
+            document.documentElement.classList.add('dark-theme');
+            themeIcon.textContent = '☀️';
+        } else {
+            themeIcon.textContent = '🌙';
+        }
+    }
+    
+    function toggleTheme() {
+        const isDark = document.documentElement.classList.toggle('dark-theme');
+        
+        if (isDark) {
+            localStorage.setItem(THEME_KEY, 'dark');
+            themeIcon.textContent = '☀️';
+        } else {
+            localStorage.setItem(THEME_KEY, 'light');
+            themeIcon.textContent = '🌙';
+        }
+        
+        // Atualiza os gráficos para refletir o novo tema
+        renderChart(activeChartType);
+    }
+    
+    // Funções para o alerta de limite
+    function checkLimitWarning() {
+        const totalSpent = calculateTotalSpent();
+        const percentageUsed = totalSpent / CARD_LIMIT;
+        
+        if (percentageUsed >= LIMIT_WARNING_THRESHOLD) {
+            const available = CARD_LIMIT - totalSpent;
+            showLimitWarning(available);
+        } else {
+            dismissAlert();
+        }
+    }
+    
+    function showLimitWarning(available) {
+        alertMessage.textContent = `Atenção! Você já usou ${Math.round((1 - available/CARD_LIMIT) * 100)}% do seu limite. Disponível: R$${available.toFixed(2)}`;
+        limitAlert.classList.remove('hidden');
+    }
+    
+    function dismissAlert() {
+        limitAlert.classList.add('hidden');
     }
 }); 
