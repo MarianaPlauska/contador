@@ -17,22 +17,22 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Cores para as categorias nos gráficos
     const categoryColors = {
-        alimentacao: '#FF6384',
-        transporte: '#36A2EB',
-        lazer: '#FFCE56',
-        saude: '#4BC0C0',
-        compras: '#9966FF',
-        outros: '#C9CBCF'
+        almoco_baratinho: '#4CAF50', // Verde
+        almoco: '#2196F3',           // Azul
+        lanche: '#FFC107',           // Amarelo
+        fast_food: '#FF5722',        // Laranja avermelhado
+        lanche_sobremesa: '#E91E63', // Rosa
+        aproveitar_vida: '#9C27B0'   // Roxo
     };
     
     // Nomes das categorias para exibição
     const categoryNames = {
-        alimentacao: 'Alimentação',
-        transporte: 'Transporte',
-        lazer: 'Lazer',
-        saude: 'Saúde',
-        compras: 'Compras',
-        outros: 'Outros'
+        almoco_baratinho: 'Almoço baratinho',
+        almoco: 'Almoço',
+        lanche: 'Lanche',
+        fast_food: 'Fast-food',
+        lanche_sobremesa: 'Lanche com sobremesa',
+        aproveitar_vida: 'Aproveitar a vida'
     };
     
     // Variável para armazenar a instância do gráfico
@@ -242,20 +242,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function renderCategoryChart(ctx) {
         // Agrupa gastos por categoria
         const categoryData = {
-            alimentacao: 0,
-            transporte: 0,
-            lazer: 0,
-            saude: 0,
-            compras: 0,
-            outros: 0
+            almoco_baratinho: 0,
+            almoco: 0,
+            lanche: 0,
+            fast_food: 0,
+            lanche_sobremesa: 0,
+            aproveitar_vida: 0
         };
         
         // Soma os gastos para cada categoria
         expenses.forEach(expense => {
-            if (expense.category) {
+            if (expense.category && categoryData[expense.category] !== undefined) {
                 categoryData[expense.category] += expense.amount;
             } else {
-                categoryData.outros += expense.amount;
+                // Para compatibilidade com dados antigos
+                categoryData.lanche += expense.amount;
             }
         });
         
