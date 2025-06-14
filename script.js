@@ -8,23 +8,62 @@ document.addEventListener('DOMContentLoaded', function() {
     const descriptionInput = document.getElementById('description');
     const amountInput = document.getElementById('amount');
     const dateInput = document.getElementById('date');
+    const categoryInput = document.getElementById('category');
     const expensesList = document.getElementById('expenses-list');
     const usedBar = document.getElementById('used-bar');
     const usedValue = document.getElementById('used-value');
     const availableValue = document.getElementById('available-value');
+    const chartTabs = document.querySelectorAll('.chart-tab');
     
+    // Cores para as categorias nos gráficos
+    const categoryColors = {
+        alimentacao: '#FF6384',
+        transporte: '#36A2EB',
+        lazer: '#FFCE56',
+        saude: '#4BC0C0',
+        compras: '#9966FF',
+        outros: '#C9CBCF'
+    };
+    
+    // Nomes das categorias para exibição
+    const categoryNames = {
+        alimentacao: 'Alimentação',
+        transporte: 'Transporte',
+        lazer: 'Lazer',
+        saude: 'Saúde',
+        compras: 'Compras',
+        outros: 'Outros'
+    };
+    
+    // Variável para armazenar a instância do gráfico
+    let expensesChart = null;
+    let activeChartType = 'daily';
     
     dateInput.valueAsDate = new Date();
     
-    
     let expenses = JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    
     
     renderExpenses();
     updateLimitBar();
-    
+    renderChart(activeChartType);
     
     expenseForm.addEventListener('submit', addExpense);
+    
+    // Event listeners para as abas de gráficos
+    chartTabs.forEach(tab => {
+        tab.addEventListener('click', function() {
+            // Remove a classe active de todas as abas
+            chartTabs.forEach(t => t.classList.remove('active'));
+            // Adiciona a classe active à aba clicada
+            this.classList.add('active');
+            
+            // Atualiza o tipo de gráfico ativo
+            activeChartType = this.getAttribute('data-chart');
+            
+            // Renderiza o gráfico correspondente
+            renderChart(activeChartType);
+        });
+    });
     
     function addExpense(e) {
         e.preventDefault();
@@ -32,8 +71,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const description = descriptionInput.value.trim();
         const amount = parseFloat(amountInput.value);
         const date = dateInput.value;
+        const category = categoryInput.value;
         
-        if (!description || isNaN(amount) || amount <= 0 || !date) {
+        if (!description || isNaN(amount) || amount <= 0 || !date || !category) {
             alert('Por favor, preencha todos os campos corretamente.');
             return;
         }
@@ -48,14 +88,15 @@ document.addEventListener('DOMContentLoaded', function() {
             id: Date.now(), 
             description,
             amount,
-            date
+            date,
+            category
         };
         
         expenses.unshift(newExpense); 
         saveExpenses();
         renderExpenses();
         updateLimitBar();
-        
+        renderChart(activeChartType);
         
         expenseForm.reset();
         dateInput.valueAsDate = new Date(); // reseta o dia
@@ -66,6 +107,7 @@ document.addEventListener('DOMContentLoaded', function() {
         saveExpenses();
         renderExpenses();
         updateLimitBar();
+        renderChart(activeChartType);
     }
     
     function renderExpenses() {
@@ -80,12 +122,15 @@ document.addEventListener('DOMContentLoaded', function() {
             const expenseItem = document.createElement('div');
             expenseItem.className = 'expense-item';
             
-            
             const formattedDate = formatDate(expense.date);
+            
+            // Adiciona um indicador de categoria com cor
+            const categoryDot = expense.category ? 
+                `<span class="category-dot" style="background-color: ${categoryColors[expense.category]}"></span>` : '';
             
             expenseItem.innerHTML = `
                 <span>${formattedDate}</span>
-                <span>${expense.description}</span>
+                <span>${categoryDot} ${expense.description}</span>
                 <span>R$${expense.amount.toFixed(2)}</span>
                 <span>
                     <button class="delete-btn" data-id="${expense.id}">×</button>
@@ -95,7 +140,6 @@ document.addEventListener('DOMContentLoaded', function() {
             expensesList.appendChild(expenseItem);
         });
         
-       
         document.querySelectorAll('.delete-btn').forEach(button => {
             button.addEventListener('click', function() {
                 const id = parseInt(this.getAttribute('data-id'));
@@ -113,7 +157,6 @@ document.addEventListener('DOMContentLoaded', function() {
         usedValue.textContent = `R$${totalSpent.toFixed(2)}`;
         availableValue.textContent = `R$${available.toFixed(2)}`;
         
-        
         if (percentageUsed >= 90) {
             usedBar.style.backgroundColor = '#c0392b'; // vermelho escuro
         } else if (percentageUsed >= 75) {
@@ -123,6 +166,139 @@ document.addEventListener('DOMContentLoaded', function() {
         } else {
             usedBar.style.backgroundColor = '#2ecc71'; // verde
         }
+    }
+    
+    function renderChart(chartType) {
+        // Destrói o gráfico anterior se existir
+        if (expensesChart) {
+            expensesChart.destroy();
+        }
+        
+        const ctx = document.getElementById('expensesChart').getContext('2d');
+        
+        if (chartType === 'daily') {
+            renderDailyChart(ctx);
+        } else if (chartType === 'category') {
+            renderCategoryChart(ctx);
+        }
+    }
+    
+    function renderDailyChart(ctx) {
+        // Agrupa gastos por dia
+        const dailyData = {};
+        
+        // Ordena as despesas por data
+        const sortedExpenses = [...expenses].sort((a, b) => new Date(a.date) - new Date(b.date));
+        
+        // Pega apenas os últimos 7 dias com gastos
+        const uniqueDates = [...new Set(sortedExpenses.map(expense => expense.date))];
+        const last7Dates = uniqueDates.slice(-7);
+        
+        // Inicializa os dados para os últimos 7 dias
+        last7Dates.forEach(date => {
+            dailyData[date] = 0;
+        });
+        
+        // Soma os gastos para cada dia
+        sortedExpenses.forEach(expense => {
+            if (last7Dates.includes(expense.date)) {
+                dailyData[expense.date] += expense.amount;
+            }
+        });
+        
+        // Formata as datas para exibição
+        const labels = Object.keys(dailyData).map(date => formatDate(date));
+        const data = Object.values(dailyData);
+        
+        expensesChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: 'Gastos por Dia (R$)',
+                    data: data,
+                    backgroundColor: '#3498db',
+                    borderColor: '#2980b9',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: function(value) {
+                                return 'R$' + value;
+                            }
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    function renderCategoryChart(ctx) {
+        // Agrupa gastos por categoria
+        const categoryData = {
+            alimentacao: 0,
+            transporte: 0,
+            lazer: 0,
+            saude: 0,
+            compras: 0,
+            outros: 0
+        };
+        
+        // Soma os gastos para cada categoria
+        expenses.forEach(expense => {
+            if (expense.category) {
+                categoryData[expense.category] += expense.amount;
+            } else {
+                categoryData.outros += expense.amount;
+            }
+        });
+        
+        // Filtra apenas categorias com valores
+        const categories = [];
+        const values = [];
+        const colors = [];
+        
+        Object.keys(categoryData).forEach(category => {
+            if (categoryData[category] > 0) {
+                categories.push(categoryNames[category]);
+                values.push(categoryData[category]);
+                colors.push(categoryColors[category]);
+            }
+        });
+        
+        expensesChart = new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: categories,
+                datasets: [{
+                    data: values,
+                    backgroundColor: colors,
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                plugins: {
+                    tooltip: {
+                        callbacks: {
+                            label: function(context) {
+                                const value = context.raw;
+                                const total = context.chart.getDatasetMeta(0).total;
+                                const percentage = Math.round((value / total) * 100);
+                                return `R$${value.toFixed(2)} (${percentage}%)`;
+                            }
+                        }
+                    }
+                }
+            }
+        });
     }
     
     function calculateTotalSpent() {

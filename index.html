@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Controle de Gastos</title>
     <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
     <div class="container">
@@ -40,8 +41,30 @@
                         <label for="date">Data:</label>
                         <input type="date" id="date" required>
                     </div>
+                    <div class="form-group">
+                        <label for="category">Categoria:</label>
+                        <select id="category" required>
+                            <option value="alimentacao">Alimentação</option>
+                            <option value="transporte">Transporte</option>
+                            <option value="lazer">Lazer</option>
+                            <option value="saude">Saúde</option>
+                            <option value="compras">Compras</option>
+                            <option value="outros">Outros</option>
+                        </select>
+                    </div>
                     <button type="submit">Adicionar</button>
                 </form>
+            </div>
+        </div>
+
+        <div class="charts-section">
+            <h3>Análise de Gastos</h3>
+            <div class="chart-tabs">
+                <button class="chart-tab active" data-chart="daily">Por Dia</button>
+                <button class="chart-tab" data-chart="category">Por Categoria</button>
+            </div>
+            <div class="chart-container">
+                <canvas id="expensesChart"></canvas>
             </div>
         </div>
 
